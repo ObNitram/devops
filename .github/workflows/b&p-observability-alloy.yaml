@@ -1,0 +1,17 @@
+name: Build and Push Alloy
+
+on:
+  push:
+    tags:
+      - "alloy-v*.*.*"
+
+jobs:
+  build-and-push:
+    uses: ./.github/workflows/action-build-and-push.yaml
+    permissions:
+      contents: read
+      packages: write
+    with:
+      image_name: observability/alloy
+      build_context: ./observability/alloy
+      file_path: ./observability/alloy/Dockerfile

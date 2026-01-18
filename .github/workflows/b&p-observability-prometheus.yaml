@@ -1,0 +1,17 @@
+name: Build and Push Prometheus Observability
+
+on:
+  push:
+    tags:
+      - "prometheus-v*.*.*"
+
+jobs:
+  build-and-push:
+    uses: ./.github/workflows/action-build-and-push.yaml
+    permissions:
+      contents: read
+      packages: write
+    with:
+      image_name: observability/prometheus
+      build_context: ./observability/prometheus
+      file_path: ./observability/prometheus/Dockerfile

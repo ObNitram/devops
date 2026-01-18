@@ -1,0 +1,159 @@
+networks:
+  observability-network:
+    driver: overlay
+    attachable: false
+    internal: true
+    driver_opts:
+      encrypted: "true"
+
+  grafana-frontend-network:
+    driver: overlay
+    attachable: false
+    internal: true
+    driver_opts:
+      encrypted: "true"
+
+  swarm-proxy-network:
+    external: true
+
+secrets:
+  grafana-admin-user:
+    file: ./secrets/grafana-admin-user.txt
+  grafana-admin-password:
+    file: ./secrets/grafana-admin-password.txt
+
+volumes:
+  grafana-storage: {}
+  prometheus-storage: {}
+  loki-storage: {}
+
+services:
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      GF_SECURITY_ADMIN_USER__FILE: /run/secrets/grafana-admin-user
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana-admin-password
+    secrets:
+      - grafana-admin-user
+      - grafana-admin-password
+    volumes:
+      - grafana-storage:/var/lib/grafana
+      - ./grafana/provisioning/:/etc/grafana/provisioning/:ro
+      - ./grafana/grafana.ini:/etc/grafana/grafana.ini:ro
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: any
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.grafana.entrypoints=admin"
+        - "traefik.http.routers.grafana.rule=Host(`admin.localhost`) && PathPrefix(`/grafana`)"
+
+        - "traefik.http.routers.grafana.middlewares=compress-all"
+        - "traefik.http.middlewares.compress-all.compress=true"
+        - "traefik.http.middlewares.compress-all.compress.encodings=zstd, br, gzip"
+
+        - "traefik.http.routers.grafana.service=grafana"
+        - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+    ports:
+      - target: 3000
+        published: 3002
+        protocol: tcp
+        mode: ingress
+    networks:
+      - swarm-proxy-network
+      - grafana-frontend-network
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-storage:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: any
+      placement:
+        constraints:
+          - node.role == manager
+    ports:
+      - target: 9090
+        published: 3001
+        protocol: tcp
+        mode: ingress
+    networks:
+      - observability-network
+      - grafana-frontend-network
+
+  loki:
+    image: grafana/loki:latest
+    command:
+      - -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - loki-storage:/loki
+      - ./loki/loki-config.yaml:/etc/loki/local-config.yaml:ro
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: any
+      placement:
+        constraints:
+          - node.role == manager
+    ports:
+      - target: 3100
+        published: 3100
+        protocol: tcp
+        mode: ingress
+    networks:
+      - observability-network
+      - grafana-frontend-network
+
+  alloy:
+    image: grafana/alloy:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+    deploy:
+      mode: global
+      endpoint_mode: dnsrr
+      restart_policy:
+        condition: any
+    networks:
+      - observability-network
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    volumes:
+      - /:/rootfs:ro
+      - /run:/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    deploy:
+      mode: global
+      endpoint_mode: dnsrr
+      restart_policy:
+        condition: any
+    networks:
+      - observability-network
+
+  node_exporter:
+    image: quay.io/prometheus/node-exporter:latest
+    hostname: "{{.Node.Hostname}}"
+    command:
+      - "--path.rootfs=/host"
+    volumes:
+      - "/:/host:ro,rslave"
+    deploy:
+      mode: global
+      endpoint_mode: dnsrr
+      restart_policy:
+        condition: any
+    networks:
+      - observability-network

@@ -1,0 +1,41 @@
+# Prometheus main configuration
+
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+
+  
+
+scrape_configs:
+  # Scrape Prometheus itself
+  - job_name: "prometheus"
+    metrics_path: /metrics
+    dns_sd_configs:
+      - names: ["tasks.prometheus"]
+        type: A
+        refresh_interval: "30s"
+        port: 9090
+
+  # Scrape cAdvisor
+  - job_name: "cadvisor"
+    metrics_path: /metrics
+    dns_sd_configs:
+      - names: ["tasks.cadvisor"]
+        type: A
+        refresh_interval: "30s"
+        port: 8080
+
+  # Scrape Node Exporter
+  - job_name: "node_exporter"
+    metrics_path: /metrics
+    dns_sd_configs:
+      - names: ["tasks.node_exporter"]
+        type: A
+        refresh_interval: "30s"
+        port: 9100
+
+  # Scrape Traefik
+  - job_name: "traefik"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["traefik:9090"]

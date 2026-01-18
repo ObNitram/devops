@@ -1,0 +1,149 @@
+networks:
+  observability-network:
+    driver: overlay
+    attachable: false
+    internal: true
+    driver_opts:
+      encrypted: "true"
+
+  grafana-frontend-network:
+    driver: overlay
+    attachable: false
+    internal: true
+    driver_opts:
+      encrypted: "true"
+
+  proxy-swarm-network:
+    external: true
+
+secrets:
+  grafana-admin-user:
+    file: ./secrets/grafana-admin-user.txt
+  grafana-admin-password:
+    file: ./secrets/grafana-admin-password.txt
+
+volumes:
+  grafana-storage: {}
+  prometheus-storage: {}
+  loki-storage: {}
+
+services:
+  grafana:
+    image: ghcr.io/hyntaria/observability/grafana:v1.0
+    environment:
+      GF_SECURITY_ADMIN_USER__FILE: /run/secrets/grafana-admin-user
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana-admin-password
+    secrets:
+      - grafana-admin-user
+      - grafana-admin-password
+    volumes:
+      - grafana-storage:/var/lib/grafana
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: any
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.grafana.entrypoints=admin"
+        - "traefik.http.routers.grafana.rule=Host(`grafana.localhost`)"
+
+        - "traefik.http.routers.grafana.middlewares=compress-grafana"
+        - "traefik.http.middlewares.compress-grafana.compress=true"
+        - "traefik.http.middlewares.compress-grafana.compress.encodings=zstd, br, gzip"
+
+        - "traefik.http.routers.grafana.service=grafana"
+        - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+    networks:
+      - proxy-swarm-network
+      - grafana-frontend-network
+
+  prometheus:
+    image: ghcr.io/hyntaria/observability/prometheus:v0.2
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+    volumes:
+      - prometheus-storage:/prometheus
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: any
+      placement:
+        constraints:
+          - node.role == manager
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.prometheus.entrypoints=admin"
+        - "traefik.http.routers.prometheus.rule=Host(`prometheus.localhost`)"
+
+        - "traefik.http.routers.prometheus.middlewares=compress-prometheus"
+        - "traefik.http.middlewares.compress-prometheus.compress=true"
+        - "traefik.http.middlewares.compress-prometheus.compress.encodings=zstd, br, gzip"
+
+        - "traefik.http.routers.prometheus.service=prometheus"
+        - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+    networks:
+      - observability-network
+      - grafana-frontend-network
+      - proxy-swarm-network
+
+  loki:
+    image: ghcr.io/hyntaria/observability/loki:v0.1
+    volumes:
+      - loki-storage:/loki
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: any
+      placement:
+        constraints:
+          - node.role == manager
+    networks:
+      - observability-network
+      - grafana-frontend-network
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    volumes:
+      - /:/rootfs:ro
+      - /run:/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    deploy:
+      mode: global
+      endpoint_mode: dnsrr
+      restart_policy:
+        condition: any
+    networks:
+      - observability-network
+
+  node_exporter:
+    image: quay.io/prometheus/node-exporter:latest
+    hostname: "{{.Node.Hostname}}"
+    command:
+      - "--path.rootfs=/host"
+    volumes:
+      - "/:/host:ro,rslave"
+    deploy:
+      mode: global
+      endpoint_mode: dnsrr
+      restart_policy:
+        condition: any
+    networks:
+      - observability-network
+
+  alloy:
+    image: ghcr.io/hyntaria/observability/alloy:v0.1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    deploy:
+      mode: global
+      endpoint_mode: dnsrr
+      restart_policy:
+        condition: any
+    networks:
+      - observability-network

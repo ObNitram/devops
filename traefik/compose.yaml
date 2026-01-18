@@ -1,0 +1,104 @@
+networks:
+
+  # External network created outside of this compose file with:
+  # docker network create proxy-swarm-network --attachable --driver overlay --opt encrypted
+  proxy-swarm-network:
+    external: true
+
+  # External network created outside of this compose file with:
+  # docker network create proxy-docker-network
+  proxy-docker-network:
+    external: true
+
+volumes:
+  traefik-acme: {}
+
+services:
+  traefik:
+    image: traefik:v3.6.7
+    container_name: traefik
+    restart: unless-stopped
+    command:
+      - "--global.checknewversion=true"
+      - "--global.sendanonymoususage=true"
+
+      # Log configuration
+      - "--accesslog=true" # Enable Access Logs
+      - "--log.level=INFO" # Set the Log Level e.g INFO, DEBUG
+      # - "--log.format=json"
+
+      # Prometheus Metrics configuration
+      - "--metrics.prometheus=true"
+      - "--metrics.prometheus.entrypoint=metrics"
+      - "--metrics.prometheus.addrouterslabels=true"
+      - "--metrics.prometheus.addserviceslabels=true"
+
+      # Dashboard and API configuration
+      - "--api.dashboard=true"
+      - "--api.insecure=false"
+      - "--api.basepath=/"
+
+      # Docker Provider configuration
+      - "--providers.docker.endpoint=unix:///var/run/docker.sock"
+      - "--providers.docker.watch=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=proxy-docker-network"
+
+      # Swarm Provider configuration
+      - "--providers.swarm.endpoint=unix:///var/run/docker.sock"
+      - "--providers.swarm.watch=true"
+      - "--providers.swarm.exposedbydefault=false"
+      - "--providers.swarm.network=proxy-swarm-network"
+
+      # EntryPoints configuration
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--entrypoints.web.http.redirections.entrypoint.permanent=true"
+
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.websecure.http.tls=true"
+
+      - "--entrypoints.admin.address=:3030"
+      - "--entrypoints.metrics.address=:9090"
+
+      # Certificates Resolver configuration
+      - "--certificatesresolvers.default-resolver.acme.email=mart1.guillemot@gmail.com"
+      - "--certificatesresolvers.default-resolver.acme.storage=/etc/traefik/acme/default-resolver-acme.json"
+      - "--certificatesresolvers.default-resolver.acme.tlschallenge=true"
+
+      - "--certificatesresolvers.default-resolver.acme.caserver=https://acme-v02.api.letsencrypt.org/directory"
+      # - "--certificatesresolvers.default-resolver.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory"
+
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.entrypoints=admin"
+      - "traefik.http.routers.traefik.rule=Host(`traefik.localhost`)"
+      - "traefik.http.routers.traefik.service=api@internal"
+
+      # Add a compression middleware which can be used by other services
+      - "traefik.http.routers.traefik.middlewares=compress-all"
+      - "traefik.http.middlewares.compress-all.compress=true"
+      - "traefik.http.middlewares.compress-all.compress.encodings=zstd, br, gzip"
+
+    # environment:
+    #   - CLOUDFLARE_DNS_API_TOKEN=${CLOUDFLARE_DNS_API_TOKEN}
+
+    #   - OVH_ENDPOINT=ovh-eu
+    #   - OVH_APPLICATION_KEY=${OVH_APPLICATION_KEY}
+    #   - OVH_APPLICATION_SECRET=${OVH_APPLICATION_SECRET}
+    #   - OVH_CONSUMER_KEY=${OVH_CONSUMER_KEY}
+
+    ports:
+      - "80:80"
+      - "443:443"
+      - "127.0.0.1:3030:3030"
+    networks:
+      - proxy-docker-network
+      - proxy-swarm-network
+
+    volumes:
+      # So that Traefik can listen to the Docker events
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # So that Traefik can access the acme.json file
+      - traefik-acme:/etc/traefik/acme/:rw

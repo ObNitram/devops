@@ -1,0 +1,29 @@
+
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "swarm" {
+  targets = []
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "^/?(.*)$"
+    target_label  = "container_name"
+  }
+}
+
+loki.source.docker "docker" {
+  host         = "unix:///var/run/docker.sock"
+  targets      = discovery.docker.containers.targets
+  relabel_rules = discovery.relabel.swarm.rules
+  forward_to   = [loki.write.default.receiver]
+
+  labels = { job = "docker" } // label stable pour requêter
+}
+
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

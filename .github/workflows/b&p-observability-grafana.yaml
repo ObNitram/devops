@@ -1,0 +1,17 @@
+name: Build and Push Grafana Observability
+
+on:
+  push:
+    tags:
+      - "grafana-v*.*.*"
+
+jobs:
+  build-and-push:
+    uses: ./.github/workflows/action-build-and-push.yaml
+    permissions:
+      contents: read
+      packages: write
+    with:
+      image_name: observability/grafana
+      build_context: ./observability/grafana
+      file_path: ./observability/grafana/Dockerfile

@@ -4,6 +4,7 @@ FROM prom/prometheus:latest
 
 # Copy Prometheus configuration
 COPY prometheus.yaml /etc/prometheus/prometheus.yaml
+COPY prometheus-compose.yaml /etc/prometheus/prometheus-compose.yaml
 
 # Switch to default user and expose port
 EXPOSE 9090

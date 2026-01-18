@@ -60,9 +60,6 @@ services:
 
   prometheus:
     image: ghcr.io/obnitram/observability/prometheus:v0.2
-    command:
-      - "--config.file=/etc/prometheus/prometheus.yml"
-      - "--storage.tsdb.path=/prometheus"
     volumes:
       - prometheus-storage:/prometheus
     deploy:

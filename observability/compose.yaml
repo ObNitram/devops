@@ -13,7 +13,7 @@ networks:
     driver_opts:
       encrypted: "true"
 
-  proxy-swarm-network:
+  proxy-docker-network:
     external: true
 
 secrets:
@@ -26,6 +26,10 @@ volumes:
   grafana-storage: {}
   prometheus-storage: {}
   loki-storage: {}
+
+configs:
+  prometheus-config-v1:
+    file: ./prometheus/prometheus-compose.yaml
 
 services:
   grafana:
@@ -55,16 +59,16 @@ services:
         - "traefik.http.routers.grafana.service=grafana"
         - "traefik.http.services.grafana.loadbalancer.server.port=3000"
     networks:
-      - proxy-swarm-network
+      - proxy-docker-network
       - grafana-frontend-network
 
   prometheus:
     image: ghcr.io/obnitram/observability/prometheus:v0.2
-    command:
-      - "--config.file=/etc/prometheus/prometheus.yml"
-      - "--storage.tsdb.path=/prometheus"
     volumes:
       - prometheus-storage:/prometheus
+    configs:
+      - source: prometheus-config-v1
+        target: /etc/prometheus/prometheus.yaml
     deploy:
       mode: replicated
       replicas: 1
@@ -87,7 +91,7 @@ services:
     networks:
       - observability-network
       - grafana-frontend-network
-      - proxy-swarm-network
+      - proxy-docker-network
 
   loki:
     image: ghcr.io/obnitram/observability/loki:v0.1

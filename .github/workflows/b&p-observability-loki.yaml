@@ -3,7 +3,7 @@ name: Build and Push Loki Database
 on:
   push:
     tags:
-      - "loki-v*.*.*"
+      - "loki-v[0-9]+.[0-9]+.[0-9]+"
 
 jobs:
   build-and-push:

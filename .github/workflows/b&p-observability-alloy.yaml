@@ -3,7 +3,7 @@ name: Build and Push Alloy
 on:
   push:
     tags:
-      - "alloy-v*.*.*"
+      - "alloy-v[0-9]+.[0-9]+.[0-9]+"
 
 jobs:
   build-and-push:

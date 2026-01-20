@@ -3,7 +3,7 @@ name: Build and Push Prometheus Observability
 on:
   push:
     tags:
-      - "prometheus-v*.*.*"
+      - "prometheus-v[0-9]+.[0-9]+.[0-9]+"
 
 jobs:
   build-and-push:

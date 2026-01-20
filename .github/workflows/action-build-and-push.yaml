@@ -34,6 +34,13 @@ on:
           Comma-separated list of target platforms to build.
           Example: linux/amd64,linux/arm64
 
+      push_to_registry:
+        type: boolean
+        required: false
+        default: true
+        description: >
+          Whether to push the built image to the container registry.
+
       registry:
         type: string
         required: false
@@ -104,6 +111,6 @@ jobs:
           context: ${{ inputs.build_context }}
           file: ${{ inputs.file_path }}
           platforms: ${{ inputs.platforms }}
-          push: true
+          push: ${{ inputs.push_to_registry }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

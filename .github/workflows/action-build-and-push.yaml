@@ -56,11 +56,10 @@ on:
         description: >
           Username for the container registry.
           Example: myusername
-
+    
+    secrets:
       registry_password:
-        type: string
         required: false
-        default: ${{ secrets.GITHUB_TOKEN }}
         description: >
           Password or token for the container registry.
           Example: secrets.GITHUB_TOKEN
@@ -103,7 +102,7 @@ jobs:
         with:
           registry: ${{ inputs.registry }}
           username: ${{ inputs.registry_username }}
-          password: ${{ inputs.registry_password }}
+          password: ${{ secrets.registry_password || secrets.GITHUB_TOKEN }}
 
       - name: Build and push
         uses: docker/build-push-action@v6

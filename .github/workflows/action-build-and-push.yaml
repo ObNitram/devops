@@ -34,6 +34,30 @@ on:
           Comma-separated list of target platforms to build.
           Example: linux/amd64,linux/arm64
 
+      registry:
+        type: string
+        required: false
+        default: ghcr.io
+        description: >
+          Container registry to push the image to.
+          Example: ghcr.io or docker.io
+
+      registry_username:
+        type: string
+        required: false
+        default: ${{ github.repository_owner }}
+        description: >
+          Username for the container registry.
+          Example: myusername
+
+      registry_password:
+        type: string
+        required: false
+        default: ${{ secrets.GITHUB_TOKEN }}
+        description: >
+          Password or token for the container registry.
+          Example: secrets.GITHUB_TOKEN
+
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
@@ -61,7 +85,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ steps.lowercase.outputs.username }}/${{ inputs.image_name }}
+          images: ${{ inputs.registry }}/${{ steps.lowercase.outputs.username }}/${{ inputs.image_name }}
           tags: |
             type=match,pattern=.*(v\d+\.\d+\.\d+),group=1
             type=match,pattern=.*(v\d+\.\d+)\.\d+,group=1
@@ -70,9 +94,9 @@ jobs:
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: ${{ inputs.registry }}
+          username: ${{ inputs.registry_username }}
+          password: ${{ inputs.registry_password }}
 
       - name: Build and push
         uses: docker/build-push-action@v6
